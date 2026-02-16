@@ -1,0 +1,304 @@
+{
+    "protocol_metadata": {
+      "manufacturer": "Hefei Banyitong Science & Technology Development Co., Ltd",
+      "standard": "ISO 11898 CANopen",
+      "baud_rate": "250 kbit/s",
+      "master": "PLC",
+      "slave": "Curtis Drive Controller",
+      "slave_node_id_default": "0x03",
+      "pdo_period_ms": 20,
+      "timeout_ms": 100,
+      "byte_order": "Little Endian"
+    },
+    "messages": [
+      {
+        "name": "RPDO1_Motion_Control",
+        "direction": "PLC -> Curtis",
+        "can_id_hex": "0x203",
+        "can_id_calc": "0x200 + Node_ID",
+        "length_bytes": 8,
+        "signals": [
+          {
+            "name": "control_flags",
+            "byte_offset": 0,
+            "length_bits": 8,
+            "type": "bitmap",
+            "bits": {
+              "0": "enable_interlock_brake_release", 
+              "1": "enable_forward",
+              "2": "enable_reverse",
+              "3": "reserved_clutch",
+              "4": "driver_4_lowering_valve",
+              "5": "driver_5_lift_pump",
+              "6": "reserved",
+              "7": "reserved"
+            }
+          },
+          {
+            "name": "target_speed_rpm",
+            "byte_offset": 1,
+            "length_bytes": 2,
+            "type": "uint16",
+            "unit": "RPM",
+            "range": "0-4000"
+          },
+          {
+            "name": "acceleration_rate",
+            "byte_offset": 3,
+            "length_bytes": 1,
+            "type": "uint8",
+            "scale": 0.1,
+            "unit": "seconds",
+            "description": "0-255 corresponds to 0-25.5s"
+          },
+          {
+            "name": "deceleration_rate",
+            "byte_offset": 4,
+            "length_bytes": 1,
+            "type": "uint8",
+            "scale": 0.1,
+            "unit": "seconds",
+            "description": "0-255 corresponds to 0-25.5s"
+          },
+          {
+            "name": "target_steering_angle",
+            "byte_offset": 5,
+            "length_bytes": 2,
+            "type": "int16",
+            "scale": 0.01,
+            "unit": "degrees",
+            "range_raw": "-12000 to 12000",
+            "description": "-12000 is Left 120 deg, 12000 is Right 120 deg"
+          },
+          {
+            "name": "lowering_valve_pwm",
+            "byte_offset": 7,
+            "length_bytes": 1,
+            "type": "uint8",
+            "range": "0-200",
+            "description": "Proportional valve current control"
+          }
+        ]
+      },
+      {
+        "name": "RPDO2_Hydraulics_Control",
+        "direction": "PLC -> Curtis",
+        "can_id_hex": "0x303",
+        "can_id_calc": "0x300 + Node_ID",
+        "length_bytes": 8,
+        "signals": [
+          {
+            "name": "valve_control_flags",
+            "byte_offset": 0,
+            "length_bits": 8,
+            "type": "bitmap",
+            "bits": {
+              "0": "valve_1l_enable",
+              "1": "valve_1r_enable",
+              "2": "valve_2l_enable",
+              "3": "valve_2r_enable",
+              "4": "valve_3l_enable",
+              "5": "valve_3r_enable",
+              "6": "valve_4l_enable",
+              "7": "valve_4r_enable"
+            }
+          },
+          {
+            "name": "li_ion_battery_level",
+            "byte_offset": 1,
+            "length_bytes": 1,
+            "type": "uint8",
+            "unit": "%",
+            "range": "0-100",
+            "description": "Used if system has Lithium battery"
+          },
+          {
+            "name": "reserved",
+            "byte_offset": 2,
+            "length_bytes": 1,
+            "type": "uint8"
+          },
+          {
+            "name": "pump_target_speed",
+            "byte_offset": 3,
+            "length_bytes": 2,
+            "type": "uint16",
+            "unit": "RPM",
+            "range": "0-5000"
+          },
+          {
+            "name": "pump_acceleration",
+            "byte_offset": 5,
+            "length_bytes": 1,
+            "type": "uint8",
+            "scale": 0.1,
+            "unit": "seconds"
+          },
+          {
+            "name": "pump_deceleration",
+            "byte_offset": 6,
+            "length_bytes": 1,
+            "type": "uint8",
+            "scale": 0.1,
+            "unit": "seconds"
+          },
+          {
+            "name": "reserved",
+            "byte_offset": 7,
+            "length_bytes": 1,
+            "type": "uint8"
+          }
+        ]
+      },
+      {
+        "name": "TPDO1_Drive_Feedback",
+        "direction": "Curtis -> PLC",
+        "can_id_hex": "0x183",
+        "can_id_calc": "0x180 + Node_ID",
+        "length_bytes": 8,
+        "signals": [
+          {
+            "name": "motor_speed_rpm",
+            "byte_offset": 0,
+            "length_bytes": 2,
+            "type": "int16",
+            "unit": "RPM",
+            "range": "-4000 to 4000",
+            "description": "Positive/Negative indicates direction"
+          },
+          {
+            "name": "motor_current",
+            "byte_offset": 2,
+            "length_bytes": 2,
+            "type": "uint16",
+            "scale": 0.1,
+            "unit": "Amps",
+            "range_raw": "0-10000",
+            "description": "0-10000 corresponds to 0-1000A"
+          },
+          {
+            "name": "drive_fault_code",
+            "byte_offset": 4,
+            "length_bytes": 1,
+            "type": "uint8",
+            "description": "Refer to Curtis F2A Fault Manual"
+          },
+          {
+            "name": "lead_acid_battery_level",
+            "byte_offset": 5,
+            "length_bytes": 1,
+            "type": "uint8",
+            "unit": "%",
+            "range": "0-100"
+          },
+          {
+            "name": "controller_temperature",
+            "byte_offset": 6,
+            "length_bytes": 2,
+            "type": "int16",
+            "scale": 0.1,
+            "unit": "Celsius",
+            "range": "-100.0 to 300.0"
+          }
+        ]
+      },
+      {
+        "name": "TPDO2_Status_Feedback",
+        "direction": "Curtis -> PLC",
+        "can_id_hex": "0x283",
+        "can_id_calc": "0x280 + Node_ID",
+        "length_bytes": 8,
+        "signals": [
+          {
+            "name": "odometer_cm",
+            "byte_offset": 0,
+            "length_bytes": 4,
+            "type": "uint32",
+            "unit": "cm"
+          },
+          {
+            "name": "pump_io_status",
+            "byte_offset": 4,
+            "length_bits": 8,
+            "type": "bitmap",
+            "bits": {
+              "0": "switch_3r_input",
+              "1": "switch_3l_input",
+              "2": "switch_4r_input",
+              "3": "switch_4l_input",
+              "4": "valve_3r_output",
+              "5": "valve_3l_output",
+              "6": "valve_4r_output",
+              "7": "valve_4l_output"
+            }
+          },
+          {
+            "name": "controller_1353_io",
+            "byte_offset": 5,
+            "length_bits": 8,
+            "type": "bitmap",
+            "description": "Status of 1353 controller I/O 1 through 8"
+          },
+          {
+            "name": "drive_switch_status",
+            "byte_offset": 6,
+            "length_bits": 8,
+            "type": "bitmap",
+            "bits": {
+              "0": "emergency_stop_active_low",
+              "1": "interlock_on",
+              "2": "forward_switch",
+              "3": "reverse_switch",
+              "4": "lift_switch",
+              "5": "lower_switch",
+              "6": "mode_auto_manual"
+            }
+          },
+          {
+            "name": "drive_output_status",
+            "byte_offset": 7,
+            "length_bits": 8,
+            "type": "bitmap",
+            "bits": {
+              "0": "lowering_prop_valve",
+              "1": "electromagnetic_brake",
+              "2": "main_contactor",
+              "3": "lowering_solenoid_valve",
+              "4": "pump_contactor"
+            }
+          }
+        ]
+      },
+      {
+        "name": "TPDO3_Steering_Feedback",
+        "direction": "Curtis -> PLC",
+        "can_id_hex": "0x383",
+        "can_id_calc": "0x380 + Node_ID",
+        "length_bytes": 8,
+        "signals": [
+          {
+            "name": "steering_angle_feedback",
+            "byte_offset": 0,
+            "length_bytes": 2,
+            "type": "int16",
+            "scale": 0.01,
+            "unit": "degrees",
+            "range_raw": "-12000 to 12000"
+          },
+          {
+            "name": "steering_fault_code",
+            "byte_offset": 2,
+            "length_bytes": 1,
+            "type": "uint8",
+            "description": "Refer to 1220C Fault Manual"
+          },
+          {
+            "name": "reserved",
+            "byte_offset": 3,
+            "length_bytes": 5,
+            "type": "bytes"
+          }
+        ]
+      }
+    ]
+  }

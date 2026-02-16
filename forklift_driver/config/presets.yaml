@@ -1,0 +1,24 @@
+presets:
+  default:
+    drive_scale: 1.0
+    steer_scale: 1.0
+    lift_scale: 1.0
+    allow_fork_movement: true
+    max_height_mm: 4500
+    min_height_mm: 50
+    
+  turtle:
+    drive_scale: 0.3         # 30% speed
+    steer_scale: 0.7         # Reduced steering aggression
+    lift_scale: 0.4
+    allow_fork_movement: true
+    max_height_mm: 2000      # Cap height for stability
+    min_height_mm: 0
+    
+  transit:
+    drive_scale: 1.0
+    steer_scale: 1.0
+    lift_scale: 0.0
+    allow_fork_movement: false # Hard lockout
+    max_height_mm: 0
+    min_height_mm: 0
