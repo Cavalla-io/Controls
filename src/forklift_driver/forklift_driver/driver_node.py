@@ -3,6 +3,7 @@ import yaml
 import json
 import rclpy
 from rclpy.node import Node
+from ament_index_python.packages import get_package_share_directory
 
 # Standard ROS messages
 from std_msgs.msg import String, Float32
@@ -28,8 +29,13 @@ class ForkliftDriverNode(Node):
         self.current_height_mm = 0.0  # Continuously updated by the SICK encoder node
 
         # --- 3. PRESET MANAGEMENT ---
-        # Note: Ensure you create this file at controls/forklift_driver/config/presets.yaml
-        config_path = os.path.join(os.getcwd(), 'src', 'controls', 'forklift_driver', 'config', 'presets.yaml')
+        try:
+            package_share_directory = get_package_share_directory('forklift_driver')
+            config_path = os.path.join(package_share_directory, 'config', 'presets.yaml')
+        except Exception as e:
+            self.get_logger().error(f"Could not find package share directory: {e}")
+            config_path = ""
+
         self.presets = self.load_presets(config_path)
         
         self.active_preset_name = 'default'
@@ -38,32 +44,11 @@ class ForkliftDriverNode(Node):
         self.get_logger().info(f"Loaded preset: DEFAULT")
 
         # --- 4. SUBSCRIBERS ---
-        # The joystick / teleop server commands
-        self.create_subscription(
-            ForkliftDirectCommand, 
-            '/teleop/raw_command', 
-            self.teleop_callback, 
-            10
-        )
-        
-        # The preset switcher and override topic
-        self.create_subscription(
-            String, 
-            '/forklift/set_preset', 
-            self.preset_callback, 
-            10
-        )
-        
-        # The external SICK draw wire encoder node
-        self.create_subscription(
-            Float32, 
-            '/forklift/fork_height', 
-            self.height_callback, 
-            10
-        )
+        self.create_subscription(ForkliftDirectCommand, '/teleop/raw_command', self.teleop_callback, 10)
+        self.create_subscription(String, '/forklift/set_preset', self.preset_callback, 10)
+        self.create_subscription(Float32, '/forklift/fork_height', self.height_callback, 10)
 
     def load_presets(self, path):
-        """Loads the YAML config file. Returns an empty dict if not found."""
         try:
             with open(path, 'r') as file:
                 data = yaml.safe_load(file)
@@ -73,18 +58,18 @@ class ForkliftDriverNode(Node):
             return {}
 
     def get_failsafe_config(self):
-        """Hardcoded safety defaults in case the YAML file goes missing."""
         return {
-            'drive_scale': 0.2,   # Very slow
+            'drive_scale': 0.2,   
             'steer_scale': 0.5,
             'lift_scale': 0.2,
-            'allow_fork_movement': False, # Lockout forks entirely
+            'allow_fork_movement': False, 
             'max_height_mm': 0,
-            'min_height_mm': 0
+            'min_height_mm': 0,
+            'accel_time_s': 1.0,
+            'decel_time_s': 1.0
         }
 
     def height_callback(self, msg: Float32):
-        """Updates internal height state from the SICK encoder node."""
         self.current_height_mm = msg.data
 
     def preset_callback(self, msg: String):
@@ -92,54 +77,49 @@ class ForkliftDriverNode(Node):
         text = msg.data.strip()
 
         # --- A. JSON Override Method ---
-        # e.g., '{"max_height_mm": 4000, "min_height_mm": 100}'
         if text.startswith('{'):
             try:
                 overrides = json.loads(text)
-                if 'max_height_mm' in overrides:
-                    self.active_config['max_height_mm'] = float(overrides['max_height_mm'])
-                    self.get_logger().info(f"OVERRIDE: max_height_mm set to {self.active_config['max_height_mm']}")
-                if 'min_height_mm' in overrides:
-                    self.active_config['min_height_mm'] = float(overrides['min_height_mm'])
-                    self.get_logger().info(f"OVERRIDE: min_height_mm set to {self.active_config['min_height_mm']}")
+                for key in ['max_height_mm', 'min_height_mm', 'accel_time_s', 'decel_time_s']:
+                    if key in overrides:
+                        self.active_config[key] = float(overrides[key])
+                        self.get_logger().info(f"OVERRIDE: {key} set to {self.active_config[key]}")
                 return
             except (json.JSONDecodeError, ValueError):
                 self.get_logger().warn("Failed to parse JSON override.")
                 return
 
         # --- B. Simple String Override Method ---
-        # e.g., 'max_height:4000'
         if ':' in text:
             key, val = text.split(':', 1)
             key = key.strip().lower()
             try:
                 val = float(val.strip())
-                if key in ['max_height', 'max_height_mm']:
-                    self.active_config['max_height_mm'] = val
-                    self.get_logger().info(f"OVERRIDE: max_height_mm set to {val}")
-                elif key in ['min_height', 'min_height_mm']:
-                    self.active_config['min_height_mm'] = val
-                    self.get_logger().info(f"OVERRIDE: min_height_mm set to {val}")
+                # Normalize common naming shorthand to internal dictionary keys
+                if key in ['max_height', 'max_height_mm']: key = 'max_height_mm'
+                elif key in ['min_height', 'min_height_mm']: key = 'min_height_mm'
+                elif key in ['accel', 'accel_time', 'accel_time_s']: key = 'accel_time_s'
+                elif key in ['decel', 'decel_time', 'decel_time_s']: key = 'decel_time_s'
+
+                if key in self.active_config:
+                    self.active_config[key] = val
+                    self.get_logger().info(f"OVERRIDE: {key} set to {val}")
                 return
             except ValueError:
                 self.get_logger().warn(f"Invalid numeric value for override: {val}")
                 return
 
         # --- C. Standard Preset Switcher ---
-        # e.g., 'turtle'
         requested = text.lower()
         if requested in self.presets:
             self.active_preset_name = requested
-            # CRITICAL: Use .copy() so overrides don't permanently corrupt the base preset
             self.active_config = self.presets[requested].copy() 
             self.get_logger().info(f"Preset changed to: {requested.upper()}")
         else:
             self.get_logger().warn(f"Unknown command or preset: '{requested}'. Ignoring.")
 
     def teleop_callback(self, msg: ForkliftDirectCommand):
-        """
-        The Interceptor: Applies scaling and height limits before hardware execution.
-        """
+        """The Interceptor: Applies scaling and height limits before hardware execution."""
         config = self.active_config
 
         # 1. Apply Scaling
@@ -155,7 +135,6 @@ class ForkliftDriverNode(Node):
             safe_tilt = 0.0
             safe_shift = 0.0
         else:
-            # Software Limits: Prevent moving UP if too high, DOWN if too low
             max_h = config.get('max_height_mm', 0)
             min_h = config.get('min_height_mm', 0)
 
@@ -164,8 +143,12 @@ class ForkliftDriverNode(Node):
             elif safe_lift < 0 and self.current_height_mm <= min_h:
                 safe_lift = 0.0
 
-        # 3. Dispatch to Hardware Layer
-        self.curtis.send_motion(safe_drive, safe_steer, safe_lift)
+        # 3. Get Curve Parameters
+        accel_s = config.get('accel_time_s', 1.0)
+        decel_s = config.get('decel_time_s', 1.0)
+
+        # 4. Dispatch to Hardware Layer
+        self.curtis.send_motion(safe_drive, safe_steer, safe_lift, accel_time_s=accel_s, decel_time_s=decel_s)
         self.curtis.send_hydraulics(safe_lift, safe_tilt, safe_shift)
 
 def main(args=None):
@@ -177,7 +160,6 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        # Failsafe: Command zero velocity before the node shuts down
         node.get_logger().info("Shutting down driver. Commanding STOP.")
         node.curtis.stop_all()
         node.destroy_node()

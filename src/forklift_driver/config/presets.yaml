@@ -1,24 +1,30 @@
 presets:
   default:
-    drive_scale: 1.0
+    drive_scale: 0.5
     steer_scale: 1.0
     lift_scale: 1.0
     allow_fork_movement: true
     max_height_mm: 4500
     min_height_mm: 50
+    accel_time_s: 1.0
+    decel_time_s: 0.2
     
   turtle:
-    drive_scale: 0.3         # 30% speed
-    steer_scale: 0.7         # Reduced steering aggression
+    drive_scale: 0.3         
+    steer_scale: 0.7         
     lift_scale: 0.4
     allow_fork_movement: true
-    max_height_mm: 2000      # Cap height for stability
+    max_height_mm: 2000      
     min_height_mm: 0
+    accel_time_s: 1.5      # Softer start
+    decel_time_s: 1.0      
     
   transit:
     drive_scale: 1.0
     steer_scale: 1.0
     lift_scale: 0.0
-    allow_fork_movement: false # Hard lockout
+    allow_fork_movement: false 
     max_height_mm: 0
     min_height_mm: 0
+    accel_time_s: 2.0      
+    decel_time_s: 2.5      # Much longer braking distance for high speeds

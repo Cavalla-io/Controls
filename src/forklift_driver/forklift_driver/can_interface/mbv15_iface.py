@@ -1,7 +1,6 @@
 import can
 import struct
 import math
-import time
 
 class MBV15Interface:
     def __init__(self, channel='can0', bitrate=250000, is_mock=False):
@@ -30,13 +29,13 @@ class MBV15Interface:
         self.tpdo2_id = 0x280 + self.node_id  # 0x283 (Status Feedback)
         self.tpdo3_id = 0x380 + self.node_id  # 0x383 (Steering Feedback)
 
-        # Internal State Dictionary (Updated by TPDOs)
+        # Internal State Dictionary
         self.state = {
             'motor_rpm': 0,
             'current_amps': 0.0,
             'steering_rad': 0.0,
             'battery_percent': 0,
-            'estop_active': True,  # Default to True for safety until we hear otherwise
+            'estop_active': True,
             'drive_fault': 0,
             'steer_fault': 0
         }
@@ -45,7 +44,7 @@ class MBV15Interface:
     # DOWNSTREAM: SENDING COMMANDS (RPDO)
     # ==========================================
 
-    def send_motion(self, drive_speed_norm, steering_rad, lift_speed_norm):
+    def send_motion(self, drive_speed_norm, steering_norm, lift_speed_norm, accel_time_s=1.0, decel_time_s=1.0):
         """
         Packs and sends RPDO1 (Motion Control)
         """
@@ -60,14 +59,19 @@ class MBV15Interface:
         rpm = int(abs(drive_speed_norm) * 4000)
         rpm = max(0, min(rpm, 4000))
 
-        # Bytes 3-4: Accel / Decel (0.1s scale) -> 10 = 1.0 second
-        accel = 10
-        decel = 10
+        # Bytes 3-4: Accel / Decel (0.1s scale) -> 1.0s = 10
+        accel = int(accel_time_s * 10)
+        decel = int(decel_time_s * 10)
+        
+        # Clamp to uint8 limits (0-255)
+        accel = max(0, min(255, accel))
+        decel = max(0, min(255, decel))
 
-        # Bytes 5-6: Steering Angle (0.01 degree scale)
-        steer_deg = math.degrees(steering_rad)
-        steer_can = int(steer_deg * 100)
-        steer_can = max(-12000, min(12000, steer_can))
+        # Bytes 5-6: Steering Angle (-1.0 to 1.0)
+        # Map a normalized 1.0 input directly to 90 degrees (9000 in Curtis 0.01 deg scale)
+        MAX_STEER_CAN = 9000
+        steer_can = int(steering_norm * MAX_STEER_CAN)
+        steer_can = max(-MAX_STEER_CAN, min(MAX_STEER_CAN, steer_can))
 
         # Byte 7: Lowering Valve PWM
         lowering_pwm = 0
@@ -85,7 +89,7 @@ class MBV15Interface:
         """
         if not self.connected: return
 
-        # Byte 0: Valve Flags (Map these to your specific manifold)
+        # Byte 0: Valve Flags
         valve_flags = 0x00
         if tilt_norm > 0.5:   valve_flags |= (1 << 0)  # valve_1l
         elif tilt_norm < -0.5: valve_flags |= (1 << 1)  # valve_1r
@@ -103,9 +107,7 @@ class MBV15Interface:
         self.bus.send(can.Message(arbitration_id=self.rpdo2_id, data=data, is_extended_id=False))
 
     def stop_all(self):
-        """
-        Immediately zero-out all movement.
-        """
+        """Immediately zero-out all movement."""
         if not self.connected: return
         self.bus.send(can.Message(
             arbitration_id=self.rpdo1_id, 
@@ -117,18 +119,12 @@ class MBV15Interface:
     # UPSTREAM: READING FEEDBACK (TPDO)
     # ==========================================
 
-    def read_feedback(self, timeout=0.01):
-        """
-        Polls the CAN bus for new messages and updates the internal state.
-        Returns the updated state dictionary.
-        """
+    def read_feedback(self, timeout=0.0):
         if not self.connected: return self.state
 
-        # Drain the CAN buffer of all available messages within the timeout
         while True:
             msg = self.bus.recv(timeout=timeout)
-            if msg is None:
-                break  # No more messages
+            if msg is None: break
 
             if msg.arbitration_id == self.tpdo1_id:
                 self._parse_tpdo1(msg.data)
@@ -140,7 +136,6 @@ class MBV15Interface:
         return self.state
 
     def _parse_tpdo1(self, data):
-        """Drive Feedback (0x183)"""
         if len(data) < 8: return
         rpm, current_raw, fault, batt, temp = struct.unpack('< h H B B h', data)
         self.state['motor_rpm'] = rpm
@@ -149,20 +144,13 @@ class MBV15Interface:
         self.state['drive_fault'] = fault
 
     def _parse_tpdo2(self, data):
-        """Status Feedback (0x283)"""
         if len(data) < 8: return
         odom, pump_io, ctrl_io, drive_sw, drive_out = struct.unpack('< I B B B B', data)
-        
-        # E-Stop is bit 0 of drive_sw (Active Low: 0 means E-Stop is pressed)
-        estop_status = (drive_sw & (1 << 0)) == 0
-        self.state['estop_active'] = estop_status
+        # E-Stop is bit 0 of drive_sw (Active Low)
+        self.state['estop_active'] = (drive_sw & (1 << 0)) == 0
 
     def _parse_tpdo3(self, data):
-        """Steering Feedback (0x383)"""
         if len(data) < 8: return
         angle_raw, steer_fault, _ = struct.unpack('< h B 5s', data)
-        
-        # Convert back from 0.01 degree scale to radians
-        angle_deg = angle_raw / 100.0
-        self.state['steering_rad'] = math.radians(angle_deg)
+        self.state['steering_rad'] = math.radians(angle_raw / 100.0)
         self.state['steer_fault'] = steer_fault
