@@ -61,8 +61,8 @@ class ForkliftTeleop(Node):
         else:
             cmd.steering_angle = raw_steer
             
-        # Right Stick Y (Usually Axis 4)
-        cmd.lift_speed = float(self.get_axis(joy_msg, 4))
+        # Right Stick Y (Usually Axis 3)
+        cmd.lift_speed = -float(self.get_axis(joy_msg, 3))
         
         # --- 4. HANDLE TILT & SIDE SHIFT ---
         # In 6-axis setups, the D-Pad is usually buttons 11 through 14

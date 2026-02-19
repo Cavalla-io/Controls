@@ -95,7 +95,6 @@ class ForkliftDriverNode(Node):
             key = key.strip().lower()
             try:
                 val = float(val.strip())
-                # Normalize common naming shorthand to internal dictionary keys
                 if key in ['max_height', 'max_height_mm']: key = 'max_height_mm'
                 elif key in ['min_height', 'min_height_mm']: key = 'min_height_mm'
                 elif key in ['accel', 'accel_time', 'accel_time_s']: key = 'accel_time_s'
@@ -147,9 +146,17 @@ class ForkliftDriverNode(Node):
         accel_s = config.get('accel_time_s', 1.0)
         decel_s = config.get('decel_time_s', 1.0)
 
-        # 4. Dispatch to Hardware Layer
-        self.curtis.send_motion(safe_drive, safe_steer, safe_lift, accel_time_s=accel_s, decel_time_s=decel_s)
-        self.curtis.send_hydraulics(safe_lift, safe_tilt, safe_shift)
+        # 4. Dispatch to Hardware Layer (THE CRITICAL FIX)
+        # We now call send_commands() which handles both RPDO1 and RPDO2 internally
+        self.curtis.send_commands(
+            safe_drive, 
+            safe_steer, 
+            safe_lift, 
+            safe_tilt, 
+            safe_shift, 
+            accel_s=accel_s, 
+            decel_s=decel_s
+        )
 
 def main(args=None):
     rclpy.init(args=args)
