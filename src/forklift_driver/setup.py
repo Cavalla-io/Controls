@@ -27,8 +27,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            # ADD THIS: Exposes your node as an executable command
             'driver_node = forklift_driver.driver_node:main',
+            'safety_node = forklift_driver.safety_node:main',
         ],
     },
 )
