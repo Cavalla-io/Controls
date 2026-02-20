@@ -37,17 +37,16 @@ class MBV15Interface:
         if drive_norm > 0.02:   flags |= (1 << 1)
         elif drive_norm < -0.02: flags |= (1 << 2)
 
-        # --- HYDRAULIC FLAGS (MATCHING C++ LOGIC) ---
+        # --- HYDRAULIC FLAGS FIX ---
         is_lowering = lift_norm < -0.05
         is_lifting  = lift_norm > 0.05
         is_aux      = abs(tilt_norm) > 0.5 or abs(shift_norm) > 0.5
 
         if is_lowering:
             flags |= (1 << 4)  # Bit 4: Lowering Valve Enable
-            # Bit 5 (Pump) MUST be 0
             
-        elif is_lifting or is_aux:
-            flags |= (1 << 5)  # Bit 5: Lift Pump Enable
+        elif is_lifting:
+            flags |= (1 << 5)  # Bit 5: Lift Solenoid Enable (STRICTLY for lifting)
 
         # Drive RPM
         rpm = int(abs(drive_norm) * 4000)
@@ -62,15 +61,12 @@ class MBV15Interface:
         steer_can = int(steer_norm * MAX_STEER)
         steer_can = max(-MAX_STEER, min(MAX_STEER, steer_can))
 
-        # --- LOWERING PWM FIX (SCALED 40-200) ---
+        # Lowering PWM (Scaled 40-200)
         lowering_pwm = 0
         if is_lowering:
-            raw_val = abs(lift_norm) # 0.0 to 1.0
-            
-            # SCALING: Map 0.0-1.0 Input -> 40-200 PWM Output
+            raw_val = abs(lift_norm)
             min_pwm = 40
             max_pwm = 200
-            
             pwm_val = min_pwm + (raw_val * (max_pwm - min_pwm))
             lowering_pwm = int(pwm_val)
             lowering_pwm = max(0, min(lowering_pwm, 200))
@@ -79,7 +75,7 @@ class MBV15Interface:
         self.bus.send(can.Message(arbitration_id=self.rpdo1_id, data=data1, is_extended_id=False))
 
         # ==========================================
-        # RPDO2: PUMP RPM
+        # RPDO2: PUMP RPM & AUX VALVES
         # ==========================================
         valve_flags = 0x00
         if tilt_norm > 0.5:   valve_flags |= (1 << 0)
@@ -92,9 +88,8 @@ class MBV15Interface:
         if is_lifting:
             pump_rpm = 1000 + int(lift_norm * 2500)
         elif is_aux:
-            pump_rpm = 2000
+            pump_rpm = 2000  # Spin the pump for aux, but without opening the lift solenoid!
             
-        # Pump is OFF during lowering
         if is_lowering:
             pump_rpm = 0
 
@@ -108,7 +103,6 @@ class MBV15Interface:
         self.bus.send(can.Message(arbitration_id=self.rpdo1_id, data=struct.pack('< B H B B h B', 0, 0, 0, 0, 0, 0)))
         self.bus.send(can.Message(arbitration_id=self.rpdo2_id, data=struct.pack('< B B B H B B B', 0, 0, 0, 0, 5, 5, 0)))
 
-    # ... (Keep read_feedback logic unchanged) ...
     def read_feedback(self, timeout=0.0):
         if not self.connected: return self.state
         while True:
