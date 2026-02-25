@@ -20,13 +20,13 @@ class ForkliftSafetyNode(Node):
 
         # --- Subscribers ---
         # 1. The Raw Teleop Command
-        self.create_subscription(ForkliftDirectCommand, '/teleop/raw_command', self.teleop_cb, 10)
+        self.create_subscription(ForkliftDirectCommand, '/teleop/raw_command', self.teleop_cb, 1)
         # 2. The Adamo Web Heartbeat (0=Safe, 1=Unfocused, 2=High Latency, 3=Disconnected)
-        self.create_subscription(UInt8, '/safety', self.heartbeat_cb, 10)
+        self.create_subscription(UInt8, '/safety', self.heartbeat_cb, 1)
 
         # --- Publishers ---
         # The Verified, Safe Command going to the Hardware Driver
-        self.safe_pub = self.create_publisher(ForkliftDirectCommand, '/safe/raw_command', 10)
+        self.safe_pub = self.create_publisher(ForkliftDirectCommand, '/safe/raw_command', 1)
 
         # --- Watchdog Timer (Runs at 10Hz / every 100ms) ---
         self.create_timer(0.1, self.watchdog_loop)

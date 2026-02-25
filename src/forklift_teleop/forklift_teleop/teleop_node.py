@@ -9,7 +9,7 @@ class ForkliftTeleop(Node):
         super().__init__('forklift_teleop')
         
         # Publishers and Subscribers
-        self.cmd_pub = self.create_publisher(ForkliftDirectCommand, '/teleop/raw_command', 10)
+        self.cmd_pub = self.create_publisher(ForkliftDirectCommand, '/teleop/raw_command', 1)
         self.joy_sub = self.create_subscription(Joy, '/joy', self.joy_callback, qos_profile_sensor_data)
         
         # State tracking for the Forward/Reverse toggle
