@@ -69,6 +69,9 @@ Makefile
 *.sublime-project
 *.sublime-workspace
 
+# --- Simulation ---
+sim/
+
 # --- Colcon ---
 # Used to mark packages to ignore during build
 COLCON_IGNORE
