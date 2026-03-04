@@ -211,7 +211,13 @@ class ForkliftDriverNode(Node):
         # 3. Compute lift speed based on mode
         if self.auto_mode:
             # PID controls lift — joystick lift input is ignored
-            safe_lift = self.compute_pid_lift(config)
+            raw_pid = self.compute_pid_lift(config)
+            if raw_pid > 0:
+                safe_lift = raw_pid * config.get('lift_scale', 1.0)
+            elif raw_pid < 0:
+                safe_lift = raw_pid * config.get('lower_scale', 0.25)
+            else:
+                safe_lift = 0.0
         else:
             # Teleop: Split Lift/Lower Scaling (existing behavior)
             if msg.lift_speed > 0:
