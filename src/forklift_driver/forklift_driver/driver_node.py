@@ -51,7 +51,7 @@ class ForkliftDriverNode(Node):
 
         self.create_subscription(ForkliftDirectCommand, '/safe/raw_command', self.teleop_callback, 1)
         self.create_subscription(String, '/forklift/set_preset', self.preset_callback, 1)
-        self.create_subscription(Float32, '/forklift/fork_height', self.height_callback, 1)
+        self.create_subscription(Float32, '/fork_position', self.height_callback, 1)
         self.create_subscription(Float32, '/forklift/target_fork_height', self.target_height_callback, 1)
 
     def load_presets(self, path):
@@ -215,7 +215,7 @@ class ForkliftDriverNode(Node):
             if raw_pid > 0:
                 safe_lift = raw_pid * config.get('lift_scale', 1.0)
             elif raw_pid < 0:
-                safe_lift = raw_pid * config.get('lower_scale', 0.25)
+                safe_lift = raw_pid * config.get('lower_scale', 0.6)
             else:
                 safe_lift = 0.0
         else:
