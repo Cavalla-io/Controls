@@ -40,7 +40,7 @@ class ForkHeightController(Node):
         self.was_active = False
 
         # --- ROS interfaces ---
-        self.create_subscription(Float32, '/forklift/fork_height', self.height_cb, 1)
+        self.create_subscription(Float32, '/fork_position', self.height_cb, 1)
         self.create_subscription(Float32, '/forklift/target_fork_height', self.target_cb, 1)
 
         self.effort_pub = self.create_publisher(Float32, '/forklift/auto_lift_effort', 10)
