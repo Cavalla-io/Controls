@@ -84,66 +84,97 @@ class ForkliftSafetyNode(Node):
                 self.get_logger().warn("Teleop Fork Intervention: Canceling Auto Fork until new target.")
                 self.auto_fork_canceled = True
 
-    def watchdog_loop(self):
+    def check_teleop_safety(self) -> tuple[bool, str]:
+        """
+        Checks if the teleop connection is healthy.
+        Returns (is_safe, reason).
+        """
         now = self.get_clock().now()
-        
         time_since_heartbeat = (now - self.last_heartbeat_time).nanoseconds / 1e9
         time_since_cmd = (now - self.last_cmd_time).nanoseconds / 1e9
-        time_since_activity = (now - self.last_teleop_activity_time).nanoseconds / 1e9
+        
+        is_safe = True
+        reason = ""
+
+        # 1. Check Heartbeat Status Code
+        # 0 = safe, 1 = unfocused (unsafe), 2 = high latency (safe for now), 3 = disconnected (unsafe)
+        if self.current_status_code in [1, 3]:
+            is_safe = False
+            reason = f"Status Code {self.current_status_code} (Unfocused/Disconnected)"
+        
+        # 2. Check Heartbeat Timeout (Network Drop)
+        elif time_since_heartbeat > self.heartbeat_timeout_sec:
+            is_safe = False
+            reason = f"Heartbeat Stale ({time_since_heartbeat:.2f}s)"
+
+        # 3. Check Command Timeout (Teleop Node Crashed)
+        elif time_since_cmd > self.command_timeout_sec:
+            is_safe = False
+            reason = f"Command Stale ({time_since_cmd:.2f}s)"
+            
+        return is_safe, reason
+
+    def check_automation_safety(self) -> tuple[bool, str]:
+        """
+        Checks if the automation connection is healthy.
+        Returns (is_safe, reason).
+        """
+        now = self.get_clock().now()
         time_since_auto = (now - self.last_auto_msg_time).nanoseconds / 1e9
+        
+        is_safe = True
+        reason = ""
+        
+        if time_since_auto > self.AUTO_TIMEOUT_SEC:
+            is_safe = False
+            reason = f"Auto Stale ({time_since_auto:.2f}s)"
+            
+        return is_safe, reason
+
+    def watchdog_loop(self):
+        now = self.get_clock().now()
+        time_since_activity = (now - self.last_teleop_activity_time).nanoseconds / 1e9
+
+        # --- SAFETY CHECKS ---
+        teleop_safe, teleop_reason = self.check_teleop_safety()
+        auto_safe, auto_reason = self.check_automation_safety()
 
         # --- MUX LOGIC: Determine Base Command ---
         mux_cmd = ForkliftDirectCommand()
+        
+        # Are we in Teleop Priority Mode?
+        is_teleop_mode = (time_since_activity < self.TELEOP_PRIORITY_TIMEOUT)
 
-        if time_since_activity < self.TELEOP_PRIORITY_TIMEOUT:
-            # Case 1: Teleop is active (or was recently). Priority given to Teleop.
-            mux_cmd = self.latest_teleop_cmd
-        else:
-            # Case 2: Teleop is idle. Switch to Auto.
-            
-            # --- SAFETY CHECK: AUTO TIMEOUT ---
-            # If we haven't heard from the auto controller recently, assume it died
-            # and clamp to 0.0. This prevents "latching" old values.
-            if time_since_auto > self.AUTO_TIMEOUT_SEC:
-                # Silently clamp to 0.0 (or log if you prefer)
-                self.latest_auto_effort = 0.0
-
-            # Only apply lift effort if not canceled
-            if not self.auto_fork_canceled:
-                mux_cmd.lift_speed = self.latest_auto_effort
-            else:
-                mux_cmd.lift_speed = 0.0
-            
-            # (Optional) You could merge steer/drive from other auto nodes here
-
-        # --- SAFETY LOGIC GATES ---
-        is_safe = True
+        is_global_safe = True
         fault_reason = ""
 
-        # 1. Check Heartbeat Status Code
-        # C++ logic: 0 = safe, 1 = unfocused (unsafe), 2 = high latency (safe for now), 3 = disconnected (unsafe)
-        # if self.current_status_code in [1, 3]:
-        #     is_safe = False
-        #     fault_reason = f"Status Code {self.current_status_code} (Unfocused/Disconnected)"
-        
-        # 2. Check Heartbeat Timeout (Network Drop)
-        # elif time_since_heartbeat > self.heartbeat_timeout_sec:
-        #     is_safe = False
-        #     fault_reason = f"Heartbeat Stale ({time_since_heartbeat:.2f}s)"
-
-        # 3. Check Command Timeout (Teleop Node Crashed)
-        # Note: We check teleop timeout even in auto mode to ensure the "kill switch" path is alive
-        # elif time_since_cmd > self.command_timeout_sec:
-        #     is_safe = False
-        #     fault_reason = f"Command Stale ({time_since_cmd:.2f}s)"
+        if is_teleop_mode:
+            # Case 1: Teleop is active. Priority given to Teleop.
+            if teleop_safe:
+                mux_cmd = self.latest_teleop_cmd
+            else:
+                is_global_safe = False
+                fault_reason = f"TELEOP SAFETY TRIP: {teleop_reason}"
+        else:
+            # Case 2: Teleop is idle. Switch to Auto.
+            # We NO LONGER check teleop_safe here. Auto can run even if teleop is disconnected.
+            
+            if auto_safe:
+                # Only apply lift effort if not canceled
+                if not self.auto_fork_canceled:
+                    mux_cmd.lift_speed = self.latest_auto_effort
+                else:
+                    mux_cmd.lift_speed = 0.0
+            else:
+                is_global_safe = False
+                fault_reason = f"AUTO SAFETY TRIP: {auto_reason}"
 
         # --- ACTION ---
-        if is_safe:
+        if is_global_safe:
             if not self.was_safe:
                 self.get_logger().info("SYSTEM SAFE. Passing commands to hardware.")
                 self.was_safe = True
                 
-            # Forward the muxed command
             self.safe_pub.publish(mux_cmd)
             
         else:
@@ -151,7 +182,7 @@ class ForkliftSafetyNode(Node):
                 self.get_logger().warn(f"SAFETY TRIP! Reason: {fault_reason}. Clamping to 0.0.")
                 self.was_safe = False
                 
-            # Publish a completely zeroed-out command to instantly stop the forklift
+            # Publish stop command
             stop_cmd = ForkliftDirectCommand()
             self.safe_pub.publish(stop_cmd)
 
