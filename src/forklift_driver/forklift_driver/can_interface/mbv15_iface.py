@@ -57,7 +57,7 @@ class MBV15Interface:
         decel = max(0, min(255, int(decel_s * 10)))
 
         # Steering
-        MAX_STEER = 12000
+        MAX_STEER = 9000
         steer_can = int(steer_norm * MAX_STEER)
         steer_can = max(-MAX_STEER, min(MAX_STEER, steer_can))
 
