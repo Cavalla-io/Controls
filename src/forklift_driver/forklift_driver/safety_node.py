@@ -8,7 +8,7 @@ class ForkliftSafetyNode(Node):
         super().__init__('safety_node')
 
         # --- Parameters & State ---
-        self.heartbeat_timeout_sec = 0.5  # 500ms from your C++ code
+        self.heartbeat_timeout_sec = 0.75  # 750ms
         self.command_timeout_sec = 0.5    # How old a teleop command can be before it's considered stale
         
         self.last_heartbeat_time = self.get_clock().now()
