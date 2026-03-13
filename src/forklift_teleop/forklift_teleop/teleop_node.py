@@ -66,10 +66,10 @@ class ForkliftTeleop(Node):
         
         # --- 4. HANDLE TILT & SIDE SHIFT ---
         # In 6-axis setups, the D-Pad is usually buttons 11 through 14
-        dpad_up = self.get_button(joy_msg, 11)   
+        dpad_up = self.get_button(joy_msg, 13)   
         dpad_down = self.get_button(joy_msg, 12) 
-        dpad_left = self.get_button(joy_msg, 13) 
-        dpad_right = self.get_button(joy_msg, 14)
+        dpad_left = self.get_button(joy_msg, 14) 
+        dpad_right = self.get_button(joy_msg, 15)
 
         if dpad_up == 1:
             cmd.tilt_speed = 1.0
