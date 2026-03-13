@@ -21,8 +21,8 @@ class ForkHeightController(Node):
             self.get_logger().warn(f"Could not load pid.yaml: {e}. Using defaults.")
             cfg = {}
 
-        self.kp = cfg.get('kp', 0.002)
-        self.ki = cfg.get('ki', 0.0)
+        self.kp = cfg.get('kp', 0.006)
+        self.ki = cfg.get('ki', 0.001)
         self.kd = cfg.get('kd', 0.0001)
         self.deadband_mm = cfg.get('deadband_mm', 10.0)
         self.integral_max = cfg.get('integral_max', 500.0)
