@@ -16,6 +16,9 @@ class ForkliftTeleop(Node):
         self.is_forward_gear = True
         self.last_a_button_state = 0
         
+        # Deadband for lift control
+        self.lift_deadband = 0.1
+        
         self.get_logger().info("Forklift Teleop Node Initialized. Default Gear: FORWARD. Waiting for /joy data...")
 
     def get_axis(self, joy_msg, index, default=0.0):
@@ -62,7 +65,11 @@ class ForkliftTeleop(Node):
             cmd.steering_angle = raw_steer
             
         # Right Stick Y (Usually Axis 3)
-        cmd.lift_speed = -float(self.get_axis(joy_msg, 3))
+        raw_lift = -float(self.get_axis(joy_msg, 3))
+        if abs(raw_lift) < self.lift_deadband:
+            cmd.lift_speed = 0.0
+        else:
+            cmd.lift_speed = raw_lift
         
         # --- 4. HANDLE TILT & SIDE SHIFT ---
         # In 6-axis setups, the D-Pad is usually buttons 11 through 14
