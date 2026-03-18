@@ -67,9 +67,9 @@ class ForkliftDriverNode(Node):
         }
 
         self.active_preset_name = self._driver_cfg.default_preset
-        self.active_config = self.presets.get(
-            self._driver_cfg.default_preset, self._failsafe_dict.copy()
-        ).copy()
+        self.active_config = {**self._failsafe_dict, **self.presets.get(
+            self._driver_cfg.default_preset, {}
+        ).copy()}
         self.get_logger().info(f"Loaded preset: {self.active_preset_name.upper()}")
 
         self.create_subscription(ForkliftDirectCommand, '/safe/raw_command', self.teleop_callback, 1)
@@ -148,39 +148,39 @@ class ForkliftDriverNode(Node):
         requested = text.lower()
         if requested in self.presets:
             self.active_preset_name = requested
-            self.active_config = self.presets[requested].copy()
+            self.active_config = {**self._failsafe_dict, **self.presets[requested].copy()}
             self.get_logger().info(f"Preset changed to: {requested.upper()}")
 
     def teleop_callback(self, msg: ForkliftDirectCommand):
         config = self.active_config
 
-        safe_drive = msg.drive_speed * config.get("drive_scale", 0.0)
-        safe_steer = msg.steering_angle * config.get("steer_scale", 0.0)
+        safe_drive = msg.drive_speed * config["drive_scale"]
+        safe_steer = msg.steering_angle * config["steer_scale"]
 
         if msg.lift_speed > 0:
-            safe_lift = msg.lift_speed * config.get("lift_scale", 0.0)
+            safe_lift = msg.lift_speed * config["lift_scale"]
         elif msg.lift_speed < 0:
-            safe_lift = msg.lift_speed * config.get("lower_scale", 0.0)
+            safe_lift = msg.lift_speed * config["lower_scale"]
         else:
             safe_lift = 0.0
 
         safe_tilt = msg.tilt_speed
         safe_shift = msg.side_shift_speed
 
-        if not config.get("allow_fork_movement", False):
+        if not config["allow_fork_movement"]:
             safe_lift = 0.0
             safe_tilt = 0.0
             safe_shift = 0.0
         else:
-            max_h = config.get("max_height_mm", 0)
-            min_h = config.get("min_height_mm", 0)
+            max_h = config["max_height_mm"]
+            min_h = config["min_height_mm"]
             if safe_lift > 0 and self.current_height_mm >= max_h:
                 safe_lift = 0.0
             elif safe_lift < 0 and self.current_height_mm <= min_h:
                 safe_lift = 0.0
 
-        accel_s = config.get("accel_time_s", 1.0)
-        decel_s = config.get("decel_time_s", 1.0)
+        accel_s = config["accel_time_s"]
+        decel_s = config["decel_time_s"]
 
         self.curtis.send_commands(
             safe_drive,

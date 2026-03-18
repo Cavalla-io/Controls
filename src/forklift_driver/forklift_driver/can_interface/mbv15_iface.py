@@ -7,34 +7,14 @@ if TYPE_CHECKING:
     from forklift_config import MBV15Config
 
 
-def _default_mbv15_config() -> "MBV15Config":
-    from forklift_config import MBV15Config
-    return MBV15Config(
-        node_id=3,
-        drive_deadband=0.02,
-        lift_lower_threshold=0.05,
-        aux_threshold=0.5,
-        max_drive_rpm=4000,
-        max_steer_can=9000,
-        lowering_pwm_min=40,
-        lowering_pwm_max=200,
-        pump_rpm_base=1000,
-        pump_rpm_scale=2500,
-        pump_rpm_aux=2000,
-        pump_rpm_max=5000,
-    )
-
-
 class MBV15Interface:
     def __init__(
         self,
         channel="can0",
         bitrate=250000,
         is_mock=False,
-        mbv15_config: "MBV15Config | None" = None,
+        mbv15_config: "MBV15Config",
     ):
-        if mbv15_config is None:
-            mbv15_config = _default_mbv15_config()
         self.cfg = mbv15_config
 
         self.connected = False

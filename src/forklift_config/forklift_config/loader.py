@@ -201,148 +201,194 @@ class ControlsConfig:
     teleop: TeleopConfig
 
 
-def _get(d: dict[str, Any], key: str, default: Any) -> Any:
-    if key in d and d[key] is not None:
-        return d[key]
-    return default
+def _require(d: dict[str, Any], key: str, section: str) -> Any:
+    """Require key to be present and non-None. Raises ValueError if missing."""
+    if key not in d or d[key] is None:
+        raise ValueError(
+            f"Missing required key '{key}' in [{section}]. "
+            "Ensure controls.toml defines all required keys."
+        )
+    return d[key]
 
 
 def _build_hardware(raw: dict[str, Any]) -> HardwareConfig:
-    can = raw.get("can") or {}
-    mbv15_raw = raw.get("mbv15") or {}
+    can = raw.get("can")
+    if can is None or not isinstance(can, dict):
+        raise ValueError(
+            "Missing required section [hardware.can]. "
+            "Ensure controls.toml defines all required sections."
+        )
+    mbv15_raw = raw.get("mbv15")
+    if mbv15_raw is None or not isinstance(mbv15_raw, dict):
+        raise ValueError(
+            "Missing required section [hardware.mbv15]. "
+            "Ensure controls.toml defines all required sections."
+        )
     return HardwareConfig(
         can=HardwareCanConfig(
-            channel=_get(can, "channel", "can0"),
-            bitrate=int(_get(can, "bitrate", 250000)),
-            is_mock=bool(_get(can, "is_mock", False)),
+            channel=str(_require(can, "channel", "hardware.can")),
+            bitrate=int(_require(can, "bitrate", "hardware.can")),
+            is_mock=bool(_require(can, "is_mock", "hardware.can")),
         ),
         mbv15=MBV15Config(
-            node_id=int(_get(mbv15_raw, "node_id", 3)),
-            drive_deadband=float(_get(mbv15_raw, "drive_deadband", 0.02)),
-            lift_lower_threshold=float(_get(mbv15_raw, "lift_lower_threshold", 0.05)),
-            aux_threshold=float(_get(mbv15_raw, "aux_threshold", 0.5)),
-            max_drive_rpm=int(_get(mbv15_raw, "max_drive_rpm", 4000)),
-            max_steer_can=int(_get(mbv15_raw, "max_steer_can", 9000)),
-            lowering_pwm_min=int(_get(mbv15_raw, "lowering_pwm_min", 40)),
-            lowering_pwm_max=int(_get(mbv15_raw, "lowering_pwm_max", 200)),
-            pump_rpm_base=int(_get(mbv15_raw, "pump_rpm_base", 1000)),
-            pump_rpm_scale=int(_get(mbv15_raw, "pump_rpm_scale", 2500)),
-            pump_rpm_aux=int(_get(mbv15_raw, "pump_rpm_aux", 2000)),
-            pump_rpm_max=int(_get(mbv15_raw, "pump_rpm_max", 5000)),
+            node_id=int(_require(mbv15_raw, "node_id", "hardware.mbv15")),
+            drive_deadband=float(_require(mbv15_raw, "drive_deadband", "hardware.mbv15")),
+            lift_lower_threshold=float(_require(mbv15_raw, "lift_lower_threshold", "hardware.mbv15")),
+            aux_threshold=float(_require(mbv15_raw, "aux_threshold", "hardware.mbv15")),
+            max_drive_rpm=int(_require(mbv15_raw, "max_drive_rpm", "hardware.mbv15")),
+            max_steer_can=int(_require(mbv15_raw, "max_steer_can", "hardware.mbv15")),
+            lowering_pwm_min=int(_require(mbv15_raw, "lowering_pwm_min", "hardware.mbv15")),
+            lowering_pwm_max=int(_require(mbv15_raw, "lowering_pwm_max", "hardware.mbv15")),
+            pump_rpm_base=int(_require(mbv15_raw, "pump_rpm_base", "hardware.mbv15")),
+            pump_rpm_scale=int(_require(mbv15_raw, "pump_rpm_scale", "hardware.mbv15")),
+            pump_rpm_aux=int(_require(mbv15_raw, "pump_rpm_aux", "hardware.mbv15")),
+            pump_rpm_max=int(_require(mbv15_raw, "pump_rpm_max", "hardware.mbv15")),
         ),
     )
 
 
-def _build_preset_dict(preset_raw: dict[str, Any]) -> dict[str, Any]:
+def _build_preset_dict(preset_raw: dict[str, Any], section: str) -> dict[str, Any]:
     """Build one preset dict (same keys as failsafe) from a TOML preset table."""
     return {
-        "drive_scale": float(_get(preset_raw, "drive_scale", 0.2)),
-        "steer_scale": float(_get(preset_raw, "steer_scale", 0.5)),
-        "lift_scale": float(_get(preset_raw, "lift_scale", 0.2)),
-        "lower_scale": float(_get(preset_raw, "lower_scale", 0.2)),
-        "allow_fork_movement": bool(_get(preset_raw, "allow_fork_movement", False)),
-        "max_height_mm": float(_get(preset_raw, "max_height_mm", 0)),
-        "min_height_mm": float(_get(preset_raw, "min_height_mm", 0)),
-        "accel_time_s": float(_get(preset_raw, "accel_time_s", 1.0)),
-        "decel_time_s": float(_get(preset_raw, "decel_time_s", 1.0)),
+        "drive_scale": float(_require(preset_raw, "drive_scale", section)),
+        "steer_scale": float(_require(preset_raw, "steer_scale", section)),
+        "lift_scale": float(_require(preset_raw, "lift_scale", section)),
+        "lower_scale": float(_require(preset_raw, "lower_scale", section)),
+        "allow_fork_movement": bool(_require(preset_raw, "allow_fork_movement", section)),
+        "max_height_mm": float(_require(preset_raw, "max_height_mm", section)),
+        "min_height_mm": float(_require(preset_raw, "min_height_mm", section)),
+        "accel_time_s": float(_require(preset_raw, "accel_time_s", section)),
+        "decel_time_s": float(_require(preset_raw, "decel_time_s", section)),
     }
 
 
 def _build_driver(raw: dict[str, Any]) -> DriverConfig:
-    topics = raw.get("ros_topics") or {}
-    failsafe = raw.get("failsafe") or {}
+    topics = raw.get("ros_topics")
+    if topics is None or not isinstance(topics, dict):
+        raise ValueError(
+            "Missing required section [driver.ros_topics]. "
+            "Ensure controls.toml defines all required sections."
+        )
+    failsafe = raw.get("failsafe")
+    if failsafe is None or not isinstance(failsafe, dict):
+        raise ValueError(
+            "Missing required section [driver.failsafe]. "
+            "Ensure controls.toml defines all required sections."
+        )
     presets_raw = raw.get("presets") or {}
     presets: dict[str, dict[str, Any]] = {}
     for name, table in presets_raw.items():
         if isinstance(table, dict):
-            presets[str(name)] = _build_preset_dict(table)
+            presets[str(name)] = _build_preset_dict(table, f"driver.presets.{name}")
     return DriverConfig(
-        default_preset=_get(raw, "default_preset", "default"),
-        presets_file=_get(raw, "presets_file", "") or "",
+        default_preset=str(_require(raw, "default_preset", "driver")),
+        presets_file=raw.get("presets_file") or "",
         presets=presets,
         ros_topics=DriverRosTopics(
-            safe_raw_command=_get(topics, "safe_raw_command", "/safe/raw_command"),
-            set_preset=_get(topics, "set_preset", "/forklift/set_preset"),
-            fork_position=_get(topics, "fork_position", "/fork_position"),
+            safe_raw_command=str(_require(topics, "safe_raw_command", "driver.ros_topics")),
+            set_preset=str(_require(topics, "set_preset", "driver.ros_topics")),
+            fork_position=str(_require(topics, "fork_position", "driver.ros_topics")),
         ),
         failsafe=DriverFailsafeConfig(
-            drive_scale=float(_get(failsafe, "drive_scale", 0.2)),
-            steer_scale=float(_get(failsafe, "steer_scale", 0.5)),
-            lift_scale=float(_get(failsafe, "lift_scale", 0.2)),
-            lower_scale=float(_get(failsafe, "lower_scale", 0.2)),
-            allow_fork_movement=bool(_get(failsafe, "allow_fork_movement", False)),
-            max_height_mm=float(_get(failsafe, "max_height_mm", 0)),
-            min_height_mm=float(_get(failsafe, "min_height_mm", 0)),
-            accel_time_s=float(_get(failsafe, "accel_time_s", 1.0)),
-            decel_time_s=float(_get(failsafe, "decel_time_s", 1.0)),
+            drive_scale=float(_require(failsafe, "drive_scale", "driver.failsafe")),
+            steer_scale=float(_require(failsafe, "steer_scale", "driver.failsafe")),
+            lift_scale=float(_require(failsafe, "lift_scale", "driver.failsafe")),
+            lower_scale=float(_require(failsafe, "lower_scale", "driver.failsafe")),
+            allow_fork_movement=bool(_require(failsafe, "allow_fork_movement", "driver.failsafe")),
+            max_height_mm=float(_require(failsafe, "max_height_mm", "driver.failsafe")),
+            min_height_mm=float(_require(failsafe, "min_height_mm", "driver.failsafe")),
+            accel_time_s=float(_require(failsafe, "accel_time_s", "driver.failsafe")),
+            decel_time_s=float(_require(failsafe, "decel_time_s", "driver.failsafe")),
         ),
     )
 
 
 def _build_safety(raw: dict[str, Any]) -> SafetyConfig:
-    topics = raw.get("ros_topics") or {}
-    raw_codes = raw.get("unsafe_status_codes")
-    if raw_codes is None:
-        unsafe_status_codes: tuple[int, ...] = (1, 3)
-    else:
-        unsafe_status_codes = tuple(int(x) for x in raw_codes)
+    topics = raw.get("ros_topics")
+    if topics is None or not isinstance(topics, dict):
+        raise ValueError(
+            "Missing required section [safety.ros_topics]. "
+            "Ensure controls.toml defines all required sections."
+        )
+    raw_codes = _require(raw, "unsafe_status_codes", "safety")
+    unsafe_status_codes = tuple(int(x) for x in raw_codes)
     return SafetyConfig(
-        heartbeat_timeout_sec=float(_get(raw, "heartbeat_timeout_sec", 0.75)),
-        command_timeout_sec=float(_get(raw, "command_timeout_sec", 0.5)),
-        auto_timeout_sec=float(_get(raw, "auto_timeout_sec", 0.5)),
-        teleop_priority_timeout_sec=float(_get(raw, "teleop_priority_timeout_sec", 3.0)),
-        teleop_activity_threshold=float(_get(raw, "teleop_activity_threshold", 0.01)),
-        watchdog_period_sec=float(_get(raw, "watchdog_period_sec", 0.1)),
+        heartbeat_timeout_sec=float(_require(raw, "heartbeat_timeout_sec", "safety")),
+        command_timeout_sec=float(_require(raw, "command_timeout_sec", "safety")),
+        auto_timeout_sec=float(_require(raw, "auto_timeout_sec", "safety")),
+        teleop_priority_timeout_sec=float(_require(raw, "teleop_priority_timeout_sec", "safety")),
+        teleop_activity_threshold=float(_require(raw, "teleop_activity_threshold", "safety")),
+        watchdog_period_sec=float(_require(raw, "watchdog_period_sec", "safety")),
         unsafe_status_codes=unsafe_status_codes,
         ros_topics=SafetyRosTopics(
-            teleop_raw_command=_get(topics, "teleop_raw_command", "/teleop/raw_command"),
-            safety=_get(topics, "safety", "/safety"),
-            auto_lift_effort=_get(topics, "auto_lift_effort", "/forklift/auto_lift_effort"),
-            target_fork_height=_get(topics, "target_fork_height", "/forklift/target_fork_height"),
-            safe_raw_command=_get(topics, "safe_raw_command", "/safe/raw_command"),
+            teleop_raw_command=str(_require(topics, "teleop_raw_command", "safety.ros_topics")),
+            safety=str(_require(topics, "safety", "safety.ros_topics")),
+            auto_lift_effort=str(_require(topics, "auto_lift_effort", "safety.ros_topics")),
+            target_fork_height=str(_require(topics, "target_fork_height", "safety.ros_topics")),
+            safe_raw_command=str(_require(topics, "safe_raw_command", "safety.ros_topics")),
         ),
     )
 
 
 def _build_fork_height(raw: dict[str, Any]) -> ForkHeightConfig:
-    pid = raw.get("pid") or {}
-    topics = raw.get("ros_topics") or {}
+    pid = raw.get("pid")
+    if pid is None or not isinstance(pid, dict):
+        raise ValueError(
+            "Missing required section [fork_height.pid]. "
+            "Ensure controls.toml defines all required sections."
+        )
+    topics = raw.get("ros_topics")
+    if topics is None or not isinstance(topics, dict):
+        raise ValueError(
+            "Missing required section [fork_height.ros_topics]. "
+            "Ensure controls.toml defines all required sections."
+        )
     return ForkHeightConfig(
-        target_timeout_sec=float(_get(raw, "target_timeout_sec", 0.5)),
-        control_loop_period_sec=float(_get(raw, "control_loop_period_sec", 0.02)),
+        target_timeout_sec=float(_require(raw, "target_timeout_sec", "fork_height")),
+        control_loop_period_sec=float(_require(raw, "control_loop_period_sec", "fork_height")),
         pid=ForkHeightPidConfig(
-            kp=float(_get(pid, "kp", 0.006)),
-            ki=float(_get(pid, "ki", 0.001)),
-            kd=float(_get(pid, "kd", 0.0001)),
-            deadband_mm=float(_get(pid, "deadband_mm", 5.0)),
-            integral_max=float(_get(pid, "integral_max", 500.0)),
+            kp=float(_require(pid, "kp", "fork_height.pid")),
+            ki=float(_require(pid, "ki", "fork_height.pid")),
+            kd=float(_require(pid, "kd", "fork_height.pid")),
+            deadband_mm=float(_require(pid, "deadband_mm", "fork_height.pid")),
+            integral_max=float(_require(pid, "integral_max", "fork_height.pid")),
         ),
         ros_topics=ForkHeightRosTopics(
-            fork_position=_get(topics, "fork_position", "/fork_position"),
-            target_fork_height=_get(topics, "target_fork_height", "/forklift/target_fork_height"),
-            auto_lift_effort=_get(topics, "auto_lift_effort", "/forklift/auto_lift_effort"),
+            fork_position=str(_require(topics, "fork_position", "fork_height.ros_topics")),
+            target_fork_height=str(_require(topics, "target_fork_height", "fork_height.ros_topics")),
+            auto_lift_effort=str(_require(topics, "auto_lift_effort", "fork_height.ros_topics")),
         ),
     )
 
 
 def _build_teleop(raw: dict[str, Any]) -> TeleopConfig:
-    joy = raw.get("joy_mapping") or {}
-    topics = raw.get("ros_topics") or {}
+    joy = raw.get("joy_mapping")
+    if joy is None or not isinstance(joy, dict):
+        raise ValueError(
+            "Missing required section [teleop.joy_mapping]. "
+            "Ensure controls.toml defines all required sections."
+        )
+    topics = raw.get("ros_topics")
+    if topics is None or not isinstance(topics, dict):
+        raise ValueError(
+            "Missing required section [teleop.ros_topics]. "
+            "Ensure controls.toml defines all required sections."
+        )
     return TeleopConfig(
-        lift_deadband=float(_get(raw, "lift_deadband", 0.1)),
+        lift_deadband=float(_require(raw, "lift_deadband", "teleop")),
         joy_mapping=JoyMappingConfig(
-            gear_button=int(_get(joy, "gear_button", 0)),
-            throttle_axis=int(_get(joy, "throttle_axis", 5)),
-            steer_axis=int(_get(joy, "steer_axis", 0)),
-            lift_axis=int(_get(joy, "lift_axis", 3)),
-            tilt_up_button=int(_get(joy, "tilt_up_button", 13)),
-            tilt_down_button=int(_get(joy, "tilt_down_button", 12)),
-            shift_left_button=int(_get(joy, "shift_left_button", 14)),
-            shift_right_button=int(_get(joy, "shift_right_button", 15)),
+            gear_button=int(_require(joy, "gear_button", "teleop.joy_mapping")),
+            throttle_axis=int(_require(joy, "throttle_axis", "teleop.joy_mapping")),
+            steer_axis=int(_require(joy, "steer_axis", "teleop.joy_mapping")),
+            lift_axis=int(_require(joy, "lift_axis", "teleop.joy_mapping")),
+            tilt_up_button=int(_require(joy, "tilt_up_button", "teleop.joy_mapping")),
+            tilt_down_button=int(_require(joy, "tilt_down_button", "teleop.joy_mapping")),
+            shift_left_button=int(_require(joy, "shift_left_button", "teleop.joy_mapping")),
+            shift_right_button=int(_require(joy, "shift_right_button", "teleop.joy_mapping")),
         ),
         ros_topics=TeleopRosTopics(
-            joy=_get(topics, "joy", "/joy"),
-            raw_command=_get(topics, "raw_command", "/teleop/raw_command"),
+            joy=str(_require(topics, "joy", "teleop.ros_topics")),
+            raw_command=str(_require(topics, "raw_command", "teleop.ros_topics")),
         ),
     )
 
@@ -354,12 +400,17 @@ def load_controls_config(path: str | None = None) -> ControlsConfig:
     """
     resolved = _resolve_config_path(path)
     data = _load_toml(resolved)
-    hw = data.get("hardware") or {}
+    for section in ("hardware", "driver", "safety", "fork_height", "teleop"):
+        if section not in data or data[section] is None:
+            raise ValueError(
+                f"Missing required section [{section}]. "
+                "Ensure controls.toml defines all required sections."
+            )
     return ControlsConfig(
         config_path=resolved,
-        hardware=_build_hardware(hw),
-        driver=_build_driver(data.get("driver") or {}),
-        safety=_build_safety(data.get("safety") or {}),
-        fork_height=_build_fork_height(data.get("fork_height") or {}),
-        teleop=_build_teleop(data.get("teleop") or {}),
+        hardware=_build_hardware(data["hardware"]),
+        driver=_build_driver(data["driver"]),
+        safety=_build_safety(data["safety"]),
+        fork_height=_build_fork_height(data["fork_height"]),
+        teleop=_build_teleop(data["teleop"]),
     )
