@@ -2,6 +2,8 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from forklift_msgs.msg import ForkliftDirectCommand
+from std_msgs.msg import String
+import json
 from rclpy.qos import qos_profile_sensor_data
 
 class ForkliftTeleop(Node):
@@ -10,7 +12,9 @@ class ForkliftTeleop(Node):
         
         # Publishers and Subscribers
         self.cmd_pub = self.create_publisher(ForkliftDirectCommand, '/teleop/raw_command', 1)
+        self.preset_pub = self.create_publisher(String, '/teleop/preset', 1)
         self.joy_sub = self.create_subscription(Joy, '/joy', self.joy_callback, qos_profile_sensor_data)
+        self.master_sub = self.create_subscription(String, '/master_remop_message', self.master_callback, 10)
         
         # State tracking for the Forward/Reverse toggle
         self.is_forward_gear = True
@@ -28,6 +32,19 @@ class ForkliftTeleop(Node):
     def get_button(self, joy_msg, index, default=0):
         """Safely gets a button value without crashing if the array is too short."""
         return int(joy_msg.buttons[index]) if index < len(joy_msg.buttons) else int(default)
+
+    def master_callback(self, msg):
+        try:
+            data = json.loads(msg.data)
+            if 'layout' in data:
+                layout_msg = String()
+                layout_msg.data = data['layout']
+                self.preset_pub.publish(layout_msg)
+                self.get_logger().info(f"Published layout preset: {layout_msg.data}")
+        except json.JSONDecodeError:
+            self.get_logger().error("Failed to decode JSON from /master_remop_message")
+        except Exception as e:
+            self.get_logger().error(f"Error processing master message: {e}")
 
     def joy_callback(self, joy_msg: Joy):
         self.get_logger().debug(f"CALLBACK FIRED! Received {len(joy_msg.axes)} axes and {len(joy_msg.buttons)} buttons.")

@@ -40,7 +40,7 @@ class ForkliftDriverNode(Node):
         self.get_logger().info("Loaded preset: DEFAULT")
 
         self.create_subscription(ForkliftDirectCommand, '/safe/raw_command', self.teleop_callback, 1)
-        self.create_subscription(String, '/forklift/set_preset', self.preset_callback, 1)
+        self.create_subscription(String, '/teleop/preset', self.preset_callback, 1)
         self.create_subscription(Float32, '/fork_position', self.height_callback, 1)
 
     def load_presets(self, path):
