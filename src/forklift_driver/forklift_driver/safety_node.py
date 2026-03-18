@@ -25,6 +25,7 @@ class ForkliftSafetyNode(Node):
         
         self.TELEOP_PRIORITY_TIMEOUT = 3.0  # Pause auto for 3s after teleop
         self.ACTIVITY_THRESHOLD = 0.01      # Threshold to consider teleop "active"
+        self.STALE_CMD_THRESHOLD_S = 0.15   # If no new teleop cmd for this long, zero fork axes to avoid coasting
 
         self.current_status_code = 3  # Default to 3 (Disconnected/Unsafe)
         self.was_safe = False         # Edge-detection for cleaner logging
@@ -152,6 +153,13 @@ class ForkliftSafetyNode(Node):
             # Case 1: Teleop is active. Priority given to Teleop.
             if teleop_safe:
                 mux_cmd = self.latest_teleop_cmd
+                # If last teleop command is stale, zero fork axes so we don't keep re-sending and cause forks to coast
+                time_since_cmd = (now - self.last_cmd_time).nanoseconds / 1e9
+                if time_since_cmd > self.STALE_CMD_THRESHOLD_S:
+                    mux_cmd.lift_speed = 0.0
+                    mux_cmd.tilt_speed = 0.0
+                    mux_cmd.side_shift_speed = 0.0
+                    mux_cmd.fork_spread_speed = 0.0
             else:
                 is_global_safe = False
                 fault_reason = f"TELEOP SAFETY TRIP: {teleop_reason}"
