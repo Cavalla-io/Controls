@@ -2,6 +2,8 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from forklift_msgs.msg import ForkliftDirectCommand
+from std_msgs.msg import String
+import json
 from rclpy.qos import qos_profile_sensor_data
 
 from forklift_config import load_controls_config
@@ -9,24 +11,22 @@ from forklift_config import load_controls_config
 
 class ForkliftTeleop(Node):
     def __init__(self):
-        super().__init__("forklift_teleop")
+        super().__init__('forklift_teleop')
+        
+        # Publishers and Subscribers
+        self.cmd_pub = self.create_publisher(ForkliftDirectCommand, '/teleop/raw_command', 1)
+        self.preset_pub = self.create_publisher(String, '/teleop/preset', 1)
+        self.joy_sub = self.create_subscription(Joy, '/joy', self.joy_callback, qos_profile_sensor_data)
+        self.master_sub = self.create_subscription(String, '/master_remop_message', self.master_callback, 10)
+        
+        # State tracking for the Forward/Reverse toggle
+        self.is_forward_gear = True
+        self.last_a_button_state = 0
 
         cfg = load_controls_config()
         self._teleop_cfg = cfg.teleop
-        topics = self._teleop_cfg.ros_topics
-        jm = self._teleop_cfg.joy_mapping
-
-        self.cmd_pub = self.create_publisher(
-            ForkliftDirectCommand, topics.raw_command, 1
-        )
-        self.joy_sub = self.create_subscription(
-            Joy, topics.joy, self.joy_callback, qos_profile_sensor_data
-        )
-
-        self.is_forward_gear = True
-        self.last_a_button_state = 0
+        self._joy = self._teleop_cfg.joy_mapping
         self.lift_deadband = self._teleop_cfg.lift_deadband
-        self._joy = jm
 
         self.get_logger().info(
             "Forklift Teleop Node Initialized. Default Gear: FORWARD. "
@@ -46,6 +46,19 @@ class ForkliftTeleop(Node):
             if index < len(joy_msg.buttons)
             else int(default)
         )
+
+    def master_callback(self, msg):
+        try:
+            data = json.loads(msg.data)
+            if 'layout' in data:
+                layout_msg = String()
+                layout_msg.data = data['layout']
+                self.preset_pub.publish(layout_msg)
+                self.get_logger().info(f"Published layout preset: {layout_msg.data}")
+        except json.JSONDecodeError:
+            self.get_logger().error("Failed to decode JSON from /master_remop_message")
+        except Exception as e:
+            self.get_logger().error(f"Error processing master message: {e}")
 
     def joy_callback(self, joy_msg: Joy):
         self.get_logger().debug(

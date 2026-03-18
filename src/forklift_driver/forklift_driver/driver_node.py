@@ -72,12 +72,9 @@ class ForkliftDriverNode(Node):
         ).copy()
         self.get_logger().info(f"Loaded preset: {self.active_preset_name.upper()}")
 
-        topics = self._driver_cfg.ros_topics
-        self.create_subscription(
-            ForkliftDirectCommand, topics.safe_raw_command, self.teleop_callback, 1
-        )
-        self.create_subscription(String, topics.set_preset, self.preset_callback, 1)
-        self.create_subscription(Float32, topics.fork_position, self.height_callback, 1)
+        self.create_subscription(ForkliftDirectCommand, '/safe/raw_command', self.teleop_callback, 1)
+        self.create_subscription(String, '/teleop/preset', self.preset_callback, 1)
+        self.create_subscription(Float32, '/fork_position', self.height_callback, 1)
 
     def load_presets(self, path):
         if not path:
