@@ -1,6 +1,8 @@
 """
 Load controls.toml and build typed config objects.
 Path: CONTROLS_CONFIG_PATH env, or REPO_ROOT/system/config/controls.toml, else error.
+When not using launch.sh, set CONTROLS_CONFIG_PATH (or REPO_ROOT) so controls.toml is found.
+Schema: see dataclasses and _build_* functions in this module.
 """
 from __future__ import annotations
 
@@ -109,7 +111,6 @@ class DriverFailsafeConfig:
 @dataclass(frozen=True)
 class DriverConfig:
     default_preset: str
-    presets_file: str
     presets: dict[str, dict[str, Any]]
     ros_topics: DriverRosTopics
     failsafe: DriverFailsafeConfig
@@ -176,6 +177,7 @@ class JoyMappingConfig:
 class TeleopRosTopics:
     joy: str
     raw_command: str
+    preset: str
 
 
 @dataclass(frozen=True)
@@ -211,6 +213,22 @@ def _require(d: dict[str, Any], key: str, section: str) -> Any:
     return d[key]
 
 
+def _validate_positive(value: float, name: str, section: str) -> None:
+    """Require value > 0. Raises ValueError if not."""
+    if not (value > 0):
+        raise ValueError(
+            f"Key '{name}' in [{section}] must be positive, got {value}."
+        )
+
+
+def _validate_non_empty_codes(codes: tuple[int, ...], section: str) -> None:
+    """Require unsafe_status_codes to be non-empty."""
+    if not codes:
+        raise ValueError(
+            f"Key 'unsafe_status_codes' in [{section}] must be non-empty."
+        )
+
+
 def _build_hardware(raw: dict[str, Any]) -> HardwareConfig:
     can = raw.get("can")
     if can is None or not isinstance(can, dict):
@@ -224,10 +242,12 @@ def _build_hardware(raw: dict[str, Any]) -> HardwareConfig:
             "Missing required section [hardware.mbv15]. "
             "Ensure controls.toml defines all required sections."
         )
+    bitrate_val = int(_require(can, "bitrate", "hardware.can"))
+    _validate_positive(float(bitrate_val), "bitrate", "hardware.can")
     return HardwareConfig(
         can=HardwareCanConfig(
             channel=str(_require(can, "channel", "hardware.can")),
-            bitrate=int(_require(can, "bitrate", "hardware.can")),
+            bitrate=bitrate_val,
             is_mock=bool(_require(can, "is_mock", "hardware.can")),
         ),
         mbv15=MBV15Config(
@@ -282,7 +302,6 @@ def _build_driver(raw: dict[str, Any]) -> DriverConfig:
             presets[str(name)] = _build_preset_dict(table, f"driver.presets.{name}")
     return DriverConfig(
         default_preset=str(_require(raw, "default_preset", "driver")),
-        presets_file=raw.get("presets_file") or "",
         presets=presets,
         ros_topics=DriverRosTopics(
             safe_raw_command=str(_require(topics, "safe_raw_command", "driver.ros_topics")),
@@ -312,13 +331,24 @@ def _build_safety(raw: dict[str, Any]) -> SafetyConfig:
         )
     raw_codes = _require(raw, "unsafe_status_codes", "safety")
     unsafe_status_codes = tuple(int(x) for x in raw_codes)
+    _validate_non_empty_codes(unsafe_status_codes, "safety")
+    heartbeat = float(_require(raw, "heartbeat_timeout_sec", "safety"))
+    command_to = float(_require(raw, "command_timeout_sec", "safety"))
+    auto_to = float(_require(raw, "auto_timeout_sec", "safety"))
+    teleop_pri = float(_require(raw, "teleop_priority_timeout_sec", "safety"))
+    _validate_positive(heartbeat, "heartbeat_timeout_sec", "safety")
+    _validate_positive(command_to, "command_timeout_sec", "safety")
+    _validate_positive(auto_to, "auto_timeout_sec", "safety")
+    _validate_positive(teleop_pri, "teleop_priority_timeout_sec", "safety")
+    watchdog = float(_require(raw, "watchdog_period_sec", "safety"))
+    _validate_positive(watchdog, "watchdog_period_sec", "safety")
     return SafetyConfig(
-        heartbeat_timeout_sec=float(_require(raw, "heartbeat_timeout_sec", "safety")),
-        command_timeout_sec=float(_require(raw, "command_timeout_sec", "safety")),
-        auto_timeout_sec=float(_require(raw, "auto_timeout_sec", "safety")),
-        teleop_priority_timeout_sec=float(_require(raw, "teleop_priority_timeout_sec", "safety")),
+        heartbeat_timeout_sec=heartbeat,
+        command_timeout_sec=command_to,
+        auto_timeout_sec=auto_to,
+        teleop_priority_timeout_sec=teleop_pri,
         teleop_activity_threshold=float(_require(raw, "teleop_activity_threshold", "safety")),
-        watchdog_period_sec=float(_require(raw, "watchdog_period_sec", "safety")),
+        watchdog_period_sec=watchdog,
         unsafe_status_codes=unsafe_status_codes,
         ros_topics=SafetyRosTopics(
             teleop_raw_command=str(_require(topics, "teleop_raw_command", "safety.ros_topics")),
@@ -343,9 +373,13 @@ def _build_fork_height(raw: dict[str, Any]) -> ForkHeightConfig:
             "Missing required section [fork_height.ros_topics]. "
             "Ensure controls.toml defines all required sections."
         )
+    target_to = float(_require(raw, "target_timeout_sec", "fork_height"))
+    loop_period = float(_require(raw, "control_loop_period_sec", "fork_height"))
+    _validate_positive(target_to, "target_timeout_sec", "fork_height")
+    _validate_positive(loop_period, "control_loop_period_sec", "fork_height")
     return ForkHeightConfig(
-        target_timeout_sec=float(_require(raw, "target_timeout_sec", "fork_height")),
-        control_loop_period_sec=float(_require(raw, "control_loop_period_sec", "fork_height")),
+        target_timeout_sec=target_to,
+        control_loop_period_sec=loop_period,
         pid=ForkHeightPidConfig(
             kp=float(_require(pid, "kp", "fork_height.pid")),
             ki=float(_require(pid, "ki", "fork_height.pid")),
@@ -389,6 +423,7 @@ def _build_teleop(raw: dict[str, Any]) -> TeleopConfig:
         ros_topics=TeleopRosTopics(
             joy=str(_require(topics, "joy", "teleop.ros_topics")),
             raw_command=str(_require(topics, "raw_command", "teleop.ros_topics")),
+            preset=str(_require(topics, "preset", "teleop.ros_topics")),
         ),
     )
 

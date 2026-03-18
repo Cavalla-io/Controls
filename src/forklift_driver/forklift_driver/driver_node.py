@@ -1,9 +1,6 @@
-import os
-import yaml
 import json
 import rclpy
 from rclpy.node import Node
-from ament_index_python.packages import get_package_share_directory
 
 from std_msgs.msg import String, Float32
 from forklift_msgs.msg import ForkliftDirectCommand
@@ -37,21 +34,11 @@ class ForkliftDriverNode(Node):
 
         self.current_height_mm = 0.0
 
-        if self._driver_cfg.presets:
-            self.presets = self._driver_cfg.presets
-        else:
-            config_path = self._driver_cfg.presets_file
-            if config_path and not os.path.isabs(config_path) and cfg.config_path:
-                config_dir = os.path.dirname(cfg.config_path)
-                config_path = os.path.join(config_dir, config_path)
-            if not config_path or not os.path.isfile(config_path):
-                try:
-                    package_share_directory = get_package_share_directory("forklift_driver")
-                    config_path = os.path.join(package_share_directory, "config", "presets.yaml")
-                except Exception as e:
-                    self.get_logger().error(f"Could not find package share directory: {e}")
-                    config_path = ""
-            self.presets = self.load_presets(config_path)
+        self.presets = self._driver_cfg.presets
+        if not self.presets:
+            self.get_logger().warn(
+                "No presets in controls.toml [driver.presets]. Using failsafe only."
+            )
 
         failsafe = self._driver_cfg.failsafe
         self._failsafe_dict = {
@@ -72,22 +59,12 @@ class ForkliftDriverNode(Node):
         ).copy()}
         self.get_logger().info(f"Loaded preset: {self.active_preset_name.upper()}")
 
-        self.create_subscription(ForkliftDirectCommand, '/safe/raw_command', self.teleop_callback, 1)
-        self.create_subscription(String, '/teleop/preset', self.preset_callback, 1)
-        self.create_subscription(Float32, '/fork_position', self.height_callback, 1)
-
-    def load_presets(self, path):
-        if not path:
-            return {}
-        try:
-            with open(path, "r") as file:
-                data = yaml.safe_load(file)
-                return data.get("presets", {})
-        except FileNotFoundError:
-            self.get_logger().error(
-                f"Presets file not found at {path}. Using failsafe defaults."
-            )
-            return {}
+        topics = self._driver_cfg.ros_topics
+        self.create_subscription(
+            ForkliftDirectCommand, topics.safe_raw_command, self.teleop_callback, 1
+        )
+        self.create_subscription(String, topics.set_preset, self.preset_callback, 1)
+        self.create_subscription(Float32, topics.fork_position, self.height_callback, 1)
 
     def get_failsafe_config(self):
         return self._failsafe_dict.copy()

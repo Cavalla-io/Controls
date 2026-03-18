@@ -1,5 +1,4 @@
 import os
-from glob import glob
 from setuptools import setup, find_packages
 
 package_name = 'forklift_driver'
@@ -13,12 +12,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        
-        # ADD THIS: Copies your YAML file into the ROS 2 install space
-        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
     ],
-    # Added python-can and pyyaml so rosdep knows about them
-    install_requires=['setuptools', 'python-can', 'pyyaml'],
+    install_requires=['setuptools', 'python-can'],
     zip_safe=True,
     maintainer='user',
     maintainer_email='user@todo.todo',

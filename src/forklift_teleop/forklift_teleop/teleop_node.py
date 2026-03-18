@@ -12,25 +12,30 @@ from forklift_config import load_controls_config
 class ForkliftTeleop(Node):
     def __init__(self):
         super().__init__('forklift_teleop')
-        
-        # Publishers and Subscribers
-        self.cmd_pub = self.create_publisher(ForkliftDirectCommand, '/teleop/raw_command', 1)
-        self.preset_pub = self.create_publisher(String, '/teleop/preset', 1)
-        self.joy_sub = self.create_subscription(Joy, '/joy', self.joy_callback, qos_profile_sensor_data)
-        self.master_sub = self.create_subscription(String, '/master_remop_message', self.master_callback, 10)
-        
-        # State tracking for the Forward/Reverse toggle
-        self.is_forward_gear = True
-        self.last_a_button_state = 0
 
         cfg = load_controls_config()
         self._teleop_cfg = cfg.teleop
+        topics = self._teleop_cfg.ros_topics
         self._joy = self._teleop_cfg.joy_mapping
         self.lift_deadband = self._teleop_cfg.lift_deadband
 
+        self.cmd_pub = self.create_publisher(
+            ForkliftDirectCommand, topics.raw_command, 1
+        )
+        self.preset_pub = self.create_publisher(String, topics.preset, 1)
+        self.joy_sub = self.create_subscription(
+            Joy, topics.joy, self.joy_callback, qos_profile_sensor_data
+        )
+        self.master_sub = self.create_subscription(
+            String, '/master_remop_message', self.master_callback, 10
+        )
+
+        self.is_forward_gear = True
+        self.last_a_button_state = 0
+
         self.get_logger().info(
             "Forklift Teleop Node Initialized. Default Gear: FORWARD. "
-            "Waiting for /joy data..."
+            f"Waiting for {topics.joy} data..."
         )
 
     def get_axis(self, joy_msg, index, default=0.0):
@@ -113,7 +118,9 @@ class ForkliftTeleop(Node):
             cmd.side_shift_speed = 0.0
 
         self.cmd_pub.publish(cmd)
-        self.get_logger().debug("Command published to /teleop/raw_command")
+        self.get_logger().debug(
+            f"Command published to {self._teleop_cfg.ros_topics.raw_command}"
+        )
 
 
 def main(args=None):

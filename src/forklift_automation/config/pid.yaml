@@ -1,6 +1,0 @@
-pid_config:
-  kp: 0.006
-  ki: 0.001
-  kd: 0.0001
-  deadband_mm: 5.0
-  integral_max: 500.0
