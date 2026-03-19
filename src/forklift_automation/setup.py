@@ -26,6 +26,7 @@ setup(
     entry_points={
         'console_scripts': [
             'fork_height_controller = forklift_automation.fork_height_controller:main',
+            'operator_fork_height_bridge = forklift_automation.operator_fork_height_bridge:main',
         ],
     },
 )
