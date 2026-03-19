@@ -22,7 +22,14 @@ class ForkliftSafetyNode(Node):
         
         self.auto_fork_canceled = False
         self.last_teleop_activity_time = self.get_clock().now()
-        
+
+        # Last /forklift/target_fork_height sample (for resume semantics)
+        self._last_fork_target_msg_time = None
+        self._last_fork_target_value = None
+        # Above fork_height_controller's TARGET_TIMEOUT_S (0.5): fresh stream after bridge went quiet
+        self.AUTO_TARGET_RESUME_GAP_S = 0.55
+        self.AUTO_TARGET_VALUE_EPS_M = 1e-5
+
         self.TELEOP_PRIORITY_TIMEOUT = 3.0  # Pause auto for 3s after teleop
         self.ACTIVITY_THRESHOLD = 0.01      # Threshold to consider teleop "active"
 
@@ -58,10 +65,24 @@ class ForkliftSafetyNode(Node):
         self.last_auto_msg_time = self.get_clock().now()
 
     def auto_target_cb(self, msg: Float32):
-        # If we receive a new target, we assume the operator wants auto to resume
+        now = self.get_clock().now()
+        t = msg.data
+        gap_s = float("inf")
+        if self._last_fork_target_msg_time is not None:
+            gap_s = (now - self._last_fork_target_msg_time).nanoseconds / 1e9
+        value_changed = self._last_fork_target_value is None or abs(
+            t - self._last_fork_target_value
+        ) > self.AUTO_TARGET_VALUE_EPS_M
+        self._last_fork_target_msg_time = now
+        self._last_fork_target_value = t
+
         if self.auto_fork_canceled:
-            self.get_logger().info("New Auto Target Received: Resuming Auto Fork control.")
-            self.auto_fork_canceled = False
+            # Ignore high-rate duplicate setpoints; allow resume on new height or after
+            # bridge/target stream pauses (e.g. operator_fork_height_bridge cleared latch).
+            stream_resumed_after_pause = gap_s > self.AUTO_TARGET_RESUME_GAP_S
+            if value_changed or stream_resumed_after_pause:
+                self.get_logger().info("New Auto Target Received: Resuming Auto Fork control.")
+                self.auto_fork_canceled = False
 
     def teleop_cb(self, msg: ForkliftDirectCommand):
         self.latest_teleop_cmd = msg
