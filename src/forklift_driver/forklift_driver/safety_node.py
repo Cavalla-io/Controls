@@ -1,5 +1,3 @@
-import math
-
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import UInt8, Float32
@@ -22,8 +20,9 @@ class ForkliftSafetyNode(Node):
         self.last_auto_msg_time = self.get_clock().now()  # Track when we last heard from auto
         self.AUTO_TIMEOUT_SEC = 0.5  # If auto stops talking, we stop listening
         
+        self.auto_fork_canceled = False
         self.last_teleop_activity_time = self.get_clock().now()
-
+        
         self.TELEOP_PRIORITY_TIMEOUT = 3.0  # Pause auto for 3s after teleop
         self.ACTIVITY_THRESHOLD = 0.01      # Threshold to consider teleop "active"
 
@@ -38,6 +37,8 @@ class ForkliftSafetyNode(Node):
 
         # 3. Auto Inputs (For Muxing)
         self.create_subscription(Float32, '/forklift/auto_lift_effort', self.auto_effort_cb, 10)
+        # Watch for new targets to un-cancel the auto fork
+        self.create_subscription(Float32, '/forklift/target_fork_height', self.auto_target_cb, 1)
 
         # --- Publishers ---
         # The Verified, Safe Command going to the Hardware Driver
@@ -56,6 +57,12 @@ class ForkliftSafetyNode(Node):
         self.latest_auto_effort = msg.data
         self.last_auto_msg_time = self.get_clock().now()
 
+    def auto_target_cb(self, msg: Float32):
+        # If we receive a new target, we assume the operator wants auto to resume
+        if self.auto_fork_canceled:
+            self.get_logger().info("New Auto Target Received: Resuming Auto Fork control.")
+            self.auto_fork_canceled = False
+
     def teleop_cb(self, msg: ForkliftDirectCommand):
         self.latest_teleop_cmd = msg
         self.last_cmd_time = self.get_clock().now()
@@ -71,6 +78,11 @@ class ForkliftSafetyNode(Node):
 
         if is_driving or is_forking:
             self.last_teleop_activity_time = self.get_clock().now()
+            
+            # If the operator specifically moved the forks, cancel auto until next target
+            if is_forking and not self.auto_fork_canceled:
+                self.get_logger().warn("Teleop Fork Intervention: Canceling Auto Fork until new target.")
+                self.auto_fork_canceled = True
 
     def check_teleop_safety(self) -> tuple[bool, str]:
         """
@@ -148,9 +160,11 @@ class ForkliftSafetyNode(Node):
             # We NO LONGER check teleop_safe here. Auto can run even if teleop is disconnected.
             
             if auto_safe:
-                # fork_height_controller publishes NaN when disengaged (no target / timed out)
-                e = self.latest_auto_effort
-                mux_cmd.lift_speed = 0.0 if (isinstance(e, float) and math.isnan(e)) else e
+                # Only apply lift effort if not canceled
+                if not self.auto_fork_canceled:
+                    mux_cmd.lift_speed = self.latest_auto_effort
+                else:
+                    mux_cmd.lift_speed = 0.0
             else:
                 is_global_safe = False
                 fault_reason = f"AUTO SAFETY TRIP: {auto_reason}"
