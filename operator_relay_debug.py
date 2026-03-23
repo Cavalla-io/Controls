@@ -27,7 +27,10 @@ from std_msgs.msg import UInt8, String, Float32
 # ---------------------------------------------------------------------------
 API_KEY = "ak_2uvzHFhWOkcyGGugop4BS0QLoG38mPfC"
 ROBOT_NAME = "test-unit"
-HEIGHTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fork_heights.json")
+HEIGHTS_FILE = os.environ.get(
+    "OPERATOR_RELAY_HEIGHTS_FILE",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "fork_heights.json"),
+)
 
 # How often to log Joy messages (seconds)
 JOY_LOG_INTERVAL = 1.0
