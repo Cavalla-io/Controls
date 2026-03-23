@@ -162,7 +162,7 @@ class OperatorRelayNode(Node):
 
         # Adamo session
         self.get_logger().info("Connecting to adamo network...")
-        self.adamo_session = adamo.connect(api_key=API_KEY)
+        self.adamo_session = adamo.connect(api_key=API_KEY, protocol="udp")
         self.get_logger().info(f"Connected (org={self.adamo_session.org})")
 
         # Adamo publisher for height state feedback to widget UI
