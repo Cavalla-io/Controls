@@ -1,10 +1,11 @@
-"""Operator Relay Node
+r"""Operator Relay Node
 
 Subscribes to operator data from the adamo network and republishes to ROS:
   - Joy (gamepad)      -> /joy
   - Safety state       -> /safety
   - Operator layout    -> /master_remop_message  (JSON: {"layout": ...})
   - Selected height    -> /master_remop_message  (JSON: {"selected target height": ...})
+  - Video panel click  -> /master_remop_message  (JSON: {"video_click": {"track", "u", "v"}})
 
 Also manages fork target heights with persistent disk storage and publishes
 the height state back to the operator widget every 2 seconds.
@@ -138,9 +139,9 @@ class OperatorRelayNode(Node):
         super().__init__("operator_relay")
 
         # ROS publishers
-        self.joy_pub = self.create_publisher(Joy, "/joy", 1)
-        self.safety_pub = self.create_publisher(UInt8, "/safety", 1)
-        self.master_pub = self.create_publisher(String, "/master_remop_message", 1)
+        self.joy_pub = self.create_publisher(Joy, "joy", 1)
+        self.safety_pub = self.create_publisher(UInt8, "safety", 1)
+        self.master_pub = self.create_publisher(String, "master_remop_message", 1)
 
         # Logging state
         self._last_joy_log = 0.0
@@ -149,7 +150,7 @@ class OperatorRelayNode(Node):
         # Fork position tracking (from robot)
         self.fork_position = 0.0
         self.fork_sub = self.create_subscription(
-            Float32, "/fork_position", self._on_fork_position, 1
+            Float32, "fork_position", self._on_fork_position, 1
         )
 
         # Heights storage
@@ -186,9 +187,12 @@ class OperatorRelayNode(Node):
         self._subs.append(self._create_sub(
             f"{ROBOT_NAME}/control/json/widget/height", self._handle_height_command
         ))
+        self._subs.append(self._create_sub(
+            f"{ROBOT_NAME}/click", self._handle_click
+        ))
 
         # Message counters for heartbeat
-        self._msg_counts = {"joy": 0, "safety": 0, "layout": 0, "height": 0}
+        self._msg_counts = {"joy": 0, "safety": 0, "layout": 0, "height": 0, "click": 0}
         self.create_timer(5.0, self._heartbeat)
 
         self.get_logger().info(f"[DEBUG] Operator relay running — {len(self._subs)} active subscriptions:")
@@ -197,6 +201,7 @@ class OperatorRelayNode(Node):
             f"{ROBOT_NAME}/control/cdr/safety",
             f"{ROBOT_NAME}/control/cdr/operator",
             f"{ROBOT_NAME}/control/json/widget/height",
+            f"{ROBOT_NAME}/click",
         ]:
             self.get_logger().info(f"  -> {topic}")
 
@@ -291,11 +296,46 @@ class OperatorRelayNode(Node):
 
             self._publish_height_state()
 
+    def _handle_click(self, payload: bytes):
+        """UI sends UTF-8 JSON: one object key (track name) -> [u, v] in normalized [0,1] image space."""
+        self._msg_counts["click"] += 1
+        try:
+            text = payload.decode("utf-8")
+            obj = json.loads(text)
+        except (UnicodeDecodeError, json.JSONDecodeError) as e:
+            self.get_logger().warning(f"[click] invalid JSON: {e}")
+            return
+
+        if not isinstance(obj, dict) or len(obj) != 1:
+            self.get_logger().warning(
+                f"[click] expected one JSON object key (track name), got {type(obj).__name__}"
+                f" len={len(obj) if isinstance(obj, dict) else 'n/a'}"
+            )
+            return
+
+        track, coords = next(iter(obj.items()))
+        if not isinstance(track, str) or not track:
+            self.get_logger().warning("[click] track name must be a non-empty string")
+            return
+        if (
+            not isinstance(coords, list)
+            or len(coords) != 2
+            or not all(isinstance(c, (int, float)) for c in coords)
+        ):
+            self.get_logger().warning(f"[click] expected [u, v] for track={track!r}, got {coords!r}")
+            return
+
+        u, v = float(coords[0]), float(coords[1])
+        out = String()
+        out.data = json.dumps({"video_click": {"track": track, "u": u, "v": v}})
+        self.master_pub.publish(out)
+        self.get_logger().info(f"[click] -> {out.data}")
+
     def _heartbeat(self):
         counts = self._msg_counts
         self.get_logger().info(
             f"[heartbeat] msgs received — layout:{counts['layout']} height:{counts['height']} "
-            f"joy:{counts['joy']} safety:{counts['safety']}"
+            f"click:{counts['click']} joy:{counts['joy']} safety:{counts['safety']}"
         )
 
     # -- ROS callbacks ---------------------------------------------------------
