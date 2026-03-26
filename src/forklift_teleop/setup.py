@@ -14,8 +14,9 @@ setup(
         ('share/' + package_name, ['package.xml']),
         # This line ensures any launch files you create get installed properly
         (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*launch.[pxy][yma]*'))),
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'pyyaml'],
     zip_safe=True,
     maintainer='user',
     maintainer_email='user@todo.todo',

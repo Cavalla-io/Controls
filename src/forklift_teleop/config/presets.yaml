@@ -1,0 +1,44 @@
+presets:
+  default:
+    drive_scale: 0.2
+    steer_scale: 1.0
+    lift_scale: 1.0
+    lower_scale: 0.25     # NEW: Independent lower scale
+    allow_fork_movement: true
+    max_height_mm: 4500
+    min_height_mm: -100
+    accel_time_s: 1.0
+    decel_time_s: 0.2
+    
+  turtle:
+    drive_scale: 0.08         
+    steer_scale: 1.0       
+    lift_scale: 0.4
+    lower_scale: 0.2     # Slower gravity drop for safety
+    allow_fork_movement: true
+    max_height_mm: 2000      
+    min_height_mm: 0
+    accel_time_s: 4.0      
+    decel_time_s: 0.2      
+    
+  travel:
+    drive_scale: 0.35
+    steer_scale: 1.0
+    lift_scale: 0.0
+    lower_scale: 0.0     # Hard lockout
+    allow_fork_movement: false 
+    max_height_mm: 1100
+    min_height_mm: 1000
+    accel_time_s: 2.0      
+    decel_time_s: 0.2
+  
+  pick_and_place:
+    drive_scale: 0.2
+    steer_scale: 1.0
+    lift_scale: 1.0
+    lower_scale: 0.5    
+    allow_fork_movement: true 
+    max_height_mm: 1000
+    min_height_mm: -1000
+    accel_time_s: 2.0      
+    decel_time_s: 0.2

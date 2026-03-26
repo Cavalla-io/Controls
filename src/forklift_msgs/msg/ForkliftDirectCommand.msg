@@ -10,3 +10,7 @@ float32 fork_spread_speed # Normalized -1.0 (in) to 1.0 (out)
 
 # Safety
 bool estop_active         # True triggers immediate brake on CAN bus
+
+# Drive Curve Parameters (0.0 = use driver defaults)
+float32 accel_time_s
+float32 decel_time_s
