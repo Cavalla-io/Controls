@@ -167,11 +167,11 @@ class ForkliftTeleop(Node):
         # --- 4. LIFT (Right Stick Y, Axis 3) ---
         raw_lift = -float(self.get_axis(joy_msg, 3))
 
-        # --- 5. TILT & SIDE SHIFT (D-Pad buttons 11-14) ---
-        dpad_up    = self.get_button(joy_msg, 11)
+        # --- 5. TILT & SIDE SHIFT (D-Pad) ---
+        dpad_up    = self.get_button(joy_msg, 13)
         dpad_down  = self.get_button(joy_msg, 12)
-        dpad_left  = self.get_button(joy_msg, 13)
-        dpad_right = self.get_button(joy_msg, 14)
+        dpad_left  = self.get_button(joy_msg, 14)
+        dpad_right = self.get_button(joy_msg, 15)
 
         raw_tilt = 1.0 if dpad_up else (-1.0 if dpad_down else 0.0)
         raw_shift = 1.0 if dpad_right else (-1.0 if dpad_left else 0.0)
