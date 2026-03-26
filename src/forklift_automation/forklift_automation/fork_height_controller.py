@@ -21,11 +21,11 @@ class ForkHeightController(Node):
             self.get_logger().warn(f"Could not load pid.yaml: {e}. Using defaults.")
             cfg = {}
 
-        self.kp = cfg.get('kp', 0.006)
-        self.ki = cfg.get('ki', 0.001)
-        self.kd = cfg.get('kd', 0.0001)
-        self.deadband_mm = cfg.get('deadband_mm', 10.0)
-        self.integral_max = cfg.get('integral_max', 500.0)
+        self.kp = cfg.get('kp', 0.004)
+        self.ki = cfg.get('ki', 0.0001)
+        self.kd = cfg.get('kd', 0.003)
+        self.deadband_mm = cfg.get('deadband_mm', 5.0)
+        self.integral_max = cfg.get('integral_max', 100.0)
 
         # --- State ---
         self.current_height_mm = 0.0
@@ -128,6 +128,10 @@ class ForkHeightController(Node):
             msg.data = 0.0
             self.effort_pub.publish(msg)
             return
+
+        # Reset integral on sign change to prevent overshoot from wind-up
+        if self.prev_error != 0.0 and math.copysign(1, error) != math.copysign(1, self.prev_error):
+            self.integral = 0.0
 
         # PID terms
         self.integral += error * dt
