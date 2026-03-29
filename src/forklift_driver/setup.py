@@ -17,8 +17,8 @@ setup(
         # ADD THIS: Copies your YAML file into the ROS 2 install space
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
     ],
-    # Added python-can and pyyaml so rosdep knows about them
-    install_requires=['setuptools', 'python-can', 'pyyaml'],
+    # Non-ROS pip deps for setuptools/colcon install (rosdep uses package.xml + rosdep keys).
+    install_requires=['setuptools', 'python-can>=4.4.0', 'pyyaml>=6.0.2'],
     zip_safe=True,
     maintainer='user',
     maintainer_email='user@todo.todo',
